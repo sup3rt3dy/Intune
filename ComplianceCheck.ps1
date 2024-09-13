@@ -3,6 +3,10 @@
 #rev 1
 # added start process Company portal, so that on the next check there should be some files present
 
+#rev2
+# added function so that the script wont run in esp
+
+
 # Function to retrieve the compliance state from Company Portal cache files
 function Get-IntuneComplianceFromCache {
     Write-Host "Checking Intune compliance status from Company Portal cache..."
