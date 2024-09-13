@@ -68,5 +68,39 @@ function Get-IntuneComplianceFromCache {
     exit 1
 }
 
-# Execute the function to check compliance
-Get-IntuneComplianceFromCache
+# Function to check if ESP is still running or completed
+function Check-ESPStatus {
+    [bool]$DevicePrepComplete = $false
+    [bool]$DeviceSetupComplete = $false
+    [bool]$AccountSetupComplete = $false
+
+    $regPath = 'HKLM:\SOFTWARE\Microsoft\Provisioning\AutopilotSettings'
+    $esp = $true
+
+    try {
+        $devicePreperationCategory = (Get-ItemProperty -Path $regPath -Name 'DevicePreparationCategory.Status' -ErrorAction 'Ignore').'DevicePreparationCategory.Status'
+        $deviceSetupCategory = (Get-ItemProperty -Path $regPath -Name 'DeviceSetupCategory.Status' -ErrorAction 'Ignore').'DeviceSetupCategory.Status'
+        $accountSetupCategory = (Get-ItemProperty -Path $regPath -Name 'AccountSetupCategory.Status' -ErrorAction 'Ignore').'AccountSetupCategory.Status'
+    } catch {
+        $esp = $false
+    }
+
+    if (-not (($devicePreperationCategory.categorySucceeded -eq 'True') -or ($devicePreperationCategory.categoryState -eq 'succeeded'))) { $esp = $false }
+    if (-not (($deviceSetupCategory.categorySucceeded -eq 'True') -or ($deviceSetupCategory.categoryState -eq 'succeeded'))) { $esp = $false }
+    if (-not (($accountSetupCategory.categorySucceeded -eq 'True') -or ($accountSetupCategory.categoryState -eq 'succeeded'))) { $esp = $false }
+
+    Write-Host "ESP Status: $esp"
+    return $esp
+}
+
+# Main script logic
+$espStatus = Check-ESPStatus
+
+# Only run Get-IntuneComplianceFromCache if ESP is not running/completed
+if (-not $espStatus) {
+    Write-Host "ESP is not running or not completed. Checking Intune compliance..."
+    Get-IntuneComplianceFromCache
+} else {
+    Write-Host "ESP is running or already completed. Skipping Intune compliance check."
+    exit 1
+}
