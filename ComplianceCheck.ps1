@@ -61,7 +61,7 @@ function Get-IntuneComplianceFromCache {
         Write-Host "Failed to launch Company Portal: $($_.Exception.Message)"
     }
 
-    return $null
+    exit 0
 }
 
 # Execute the function to check compliance
