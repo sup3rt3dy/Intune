@@ -1,5 +1,10 @@
 #script should be run in user context
 
+#Disclaimer:
+#This script is provided "as is" without any guarantees or warranties. I am not responsible for any damage, data loss, 
+#or issues that may arise from using this script. You are using it at your own risk. Always review and understand any 
+#script before running it on your system. Ensure you have appropriate backups and safeguards in place.
+
 #rev 1
 # added start process Company portal, so that on the next check there should be some files present
 
@@ -102,5 +107,5 @@ if (-not $espStatus) {
     Get-IntuneComplianceFromCache
 } else {
     Write-Host "ESP is running or already completed. Skipping Intune compliance check."
-    exit 1
+    exit o
 }
