@@ -6,13 +6,17 @@
 # Set this variable to $true for test mode or $false for live execution
 $TestMode = $true  # Set to $false for actual renaming
 
+#import module
+import-module -name Microsoft.Graph.DeviceManagement
+
+#Connect to mggraph
 $ApplicationId = "<value>"
 $SecuredPassword = "<value>"
 $tenantID = "<value>"
 
 $SecuredPasswordPassword = ConvertTo-SecureString -String $SecuredPassword -AsPlainText -Force
 
-$ClientSecretCredential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $ApplicationId, $SecuredPasswordPassword
+$ClientSecretCredential = New-Object -TypeName System.Management.Automation.PSCredentiaL -ArgumentList $ApplicationId, $SecuredPasswordPassword
 
 Connect-MgGraph -TenantId $tenantID -ClientSecretCredential $ClientSecretCredential
 
@@ -25,7 +29,7 @@ $manufacturer = "Lenovo"
 # Fetch all Windows Autopilot deployment profiles
 $profiles = (Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles").value
 
-# Loop through each profile to check device namesW
+# Loop through each profile to check device names
 foreach ($profile in $profiles) {
     # Get the device name template for this profile and check if it's null or empty
     $deviceNameTemplate = $profile.deviceNameTemplate
@@ -50,49 +54,43 @@ foreach ($profile in $profiles) {
     $assignedDevicesUri = "https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles/$profileId/assignedDevices"
     $assignedDevicesBF = (Invoke-MgGraphRequest -Method GET -Uri $assignedDevicesUri).value
     #Filter Out unwated devices (in this case devices that are alive in intune)
-    $assignedDevices = $assignedDevicesBF | Where-Object { $_.Manufacturer -eq $manufacturer -and $_.ManagedDeviceId -ne $null -and $_.ManagedDeviceId -ne '00000000-0000-0000-0000-000000000000' -and $_.lastContactedDateTime -ne '01/01/0001 00:00:00'}
+    $assignedDevices = $assignedDevicesBF | Where-Object { $_.Manufacturer -eq $manufacturer -and $_.ManagedDeviceId -ne $null -and $_.ManagedDeviceId -eq '00000000-0000-0000-0000-000000000000' -and $_.lastContactedDateTime -ne '01/01/0001 00:00:00'}
 
-    foreach ($device in $assignedDevices) {
+foreach ($device in $assignedDevices) {
         
-        # Fetch detailed info for each device
-        $deviceId = $device.azureAdDeviceId
-        $deviceDetails = (Invoke-MgGraphRequest -Method Get -Uri "https://graph.microsoft.com/beta/devicemanagement/manageddevices?`$filter=azureADDeviceId eq '$($deviceId)'").value
-        $ManagedDID = $device.ManagedDeviceId
+    # Fetch detailed info for each device
+    $deviceId = $device.azureAdDeviceId
+    $deviceDetails = (Invoke-MgGraphRequest -Method Get -Uri "https://graph.microsoft.com/beta/devicemanagement/manageddevices?`$filter=azureADDeviceId eq '$($deviceId)'").value
+    $ManagedDID = $deviceDetails.Id
 
-        # Get the device's current name and ensure it's not null or empty
-        $currentDeviceName = $deviceDetails.deviceName
+    # Get the device's current name and ensure it's not null or empty
+    $currentDeviceName = $deviceDetails.deviceName
 
-        # Check if the current device name matches the first 4 characters of the template
-        if ($currentDeviceName.Substring(0, 4) -ne $templatePrefix) {
-            Write-Host "Device $($deviceDetails.serialNumber) has name $currentDeviceName which does not match the template."
+    # Check if the current device name matches the first 4 characters of the template
+    if ($currentDeviceName.Substring(0, 4) -ne $templatePrefix) {
+        Write-Host "Device $($deviceDetails.serialNumber) has name $currentDeviceName which does not match the template."
 
-            # Construct the new device name based on the template
-            $newDeviceName = $deviceNameTemplate.Replace("%SERIAL%", $deviceDetails.serialNumber)
+        # Construct the new device name based on the template
+        $newDeviceName = $deviceNameTemplate.Replace("%SERIAL%", $deviceDetails.serialNumber)
 
-            if ($TestMode) {
-                # In test mode, just print what would be done
-                Write-Host "[TEST MODE] Would rename device $($deviceDetails.serialNumber) from $currentDeviceName to $newDeviceName"
-            } else {
-                # In live mode, perform the actual renaming
-                Write-Host "Renaming device $($deviceDetails.serialNumber) from $currentDeviceName to $newDeviceName..."
-
-                # Rename the device (This part assumes you have the required permissions to rename devices)$ManagedDID
-                $renameUri = "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$ManagedDID/setDeviceName"
-                
-                $body = @{
-                    "newDeviceName" = $newDeviceName
-                } | ConvertTo-Json
-
-                Invoke-MgGraphRequest -Method POST -Uri $renameUri -Body $body -ContentType "application/json"
-                Write-Host "Renamed device $($deviceDetails.serialNumber) to $newDeviceName"
-            }
-        } 
-        else {
-            Write-Host "Device $($deviceDetails.serialNumber) name is already in accordance with the template."
-        }
-    }
+        if ($TestMode) {
+            # In test mode, just print what would be done
+            Write-Host "[TEST MODE] Would rename device $($deviceDetails.serialNumber) from $currentDeviceName to $newDeviceName"
+        } else {
+            # In live mode, perform the actual renaming
+            Write-Host "Renaming device $($deviceDetails.serialNumber) from $currentDeviceName to $newDeviceName..."
+            # Rename the device (using the Intune managedDeviceId)
+            Update-MgDeviceManagementManagedDevice -ManagedDeviceId $ManagedDID -ManagedDeviceName $newDeviceName
+            
+    } 
+    #else {
+    #    Write-Host "Device $($deviceDetails.serialNumber) name is already in accordance with the template."
+    #}
+}
+}
 }
 
 Write-Host "Script completed. Test Mode: $TestMode"
 
-Disconnect-MgGraph
+#Close Connection
+Disconnect-Graph
